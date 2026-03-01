@@ -1,0 +1,8 @@
+node_modules/
+.env
+.env.*
+!.env.example
+apps/*/node_modules/
+apps/*/.env
+apps/*/.env.*
+apps/*/.clawdia-agent.json

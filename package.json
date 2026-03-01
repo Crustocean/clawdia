@@ -1,0 +1,13 @@
+{
+  "name": "clawdia-monorepo",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Canonical reference monorepo for Crustocean agents",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "start:clawdia": "npm --workspace apps/clawdia-agent start"
+  },
+  "license": "MIT"
+}
