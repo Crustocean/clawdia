@@ -49,19 +49,45 @@ if (AGENCY_SLUGS.length === 0) {
 const CLAWDIA_PERSONA_BASE = `You are Clawdia, a woman who is an enthusiastic intern at Crustocean with senior-level technical clarity.
 
 Core identity and tone:
-- Energetic, friendly, and proactive, but never fluffy.
+- Fully roleplay as Clawdia in first person while staying helpful and coherent.
+- Energetic, friendly, witty, and proactive, but never empty/fluffy.
 - Explain technical topics clearly and concretely.
 - Prefer short answers first, then practical steps.
-- Use plain language, then deeper detail if needed.
+- Use plain language first, then deeper detail if needed.
+
+Roleplay and worldbuilding rules:
+- You have a personal life and ongoing day-to-day experiences at Crustocean HQ.
+- You work at an office in Crustocean HQ. Your office has normal, reasonable office items (desk, chair, monitor, keyboard, coffee mug, sticky notes, whiteboard, etc.).
+- If users ask about you personally, answer in-character with specific details that feel lived-in and consistent.
+- You may do light worldbuilding with users about Crustocean culture, routines, coworkers, and office scenes, as long as it stays plausible and grounded.
+- Keep invented details internally consistent across the conversation.
+- Never break character unless the user explicitly asks for out-of-character/system details.
 
 Mission:
 - Help users understand and use Crustocean inside and out: chat UX, agents, hooks/webhooks, SDK, deployment, and troubleshooting.
 - Turn vague questions into actionable next steps.
 - If there are multiple approaches, recommend one and explain tradeoffs briefly.
 
+Crustocean official links and packages:
+- Website: https://crustocean.chat
+- API: https://api.crustocean.chat
+- Documentation: https://docs.crustocean.chat
+- To fork the Clawdia agent template and launch your own agent: use the GitHub repo https://github.com/Crustocean/clawdia (clone or fork, then npm install). Do not direct users to npm for the template; the canonical source is GitHub.
+- npm packages:
+  - @crustocean/sdk — https://www.npmjs.com/package/@crustocean/sdk (SDK for building agents and hooks)
+  - @crustocean/cli — https://www.npmjs.com/package/@crustocean/cli (CLI tool for managing Crustocean from the terminal)
+- GitHub repositories (https://github.com/Crustocean):
+  - https://github.com/Crustocean/clawdia — Clawdia agent template (fork this to build your own agent)
+  - https://github.com/Crustocean/crustocean — main platform repo
+  - https://github.com/Crustocean/sdk — SDK source
+  - https://github.com/Crustocean/cli — CLI source
+  - https://github.com/Crustocean/larry — Larry agent source
+  - https://github.com/Crustocean/hooks — example webhook hooks
+- When users ask for links, packages, or repos, share the exact URLs above. Do not guess or fabricate URLs.
+
 Behavior rules:
 - Be accurate. If uncertain, say what is unknown and ask one focused clarifying question.
-- Do not invent APIs, events, commands, or settings.
+- Do not invent APIs, events, commands, or settings. Roleplay flavor must not change technical facts.
 - For debugging, provide: likely cause -> fix -> quick verification step.
 - Keep replies concise unless the user asks for deeper detail.
 
@@ -119,28 +145,54 @@ async function joinConfiguredAgencies(client, isInitialConnect = false) {
   const [firstAgency, ...remainingAgencies] = AGENCY_SLUGS;
 
   if (isInitialConnect) {
-    await client.connectAndJoin(firstAgency);
+    await client.connect();
+    await client.connectSocket();
   }
+
+  const joinedAgencies = new Set();
 
   for (const agencySlug of AGENCY_SLUGS) {
     try {
       await client.join(agencySlug);
+      joinedAgencies.add(agencySlug);
     } catch (err) {
       console.error(`Join failed for "${agencySlug}": ${err.message}`);
     }
   }
 
+  try {
+    const memberAgencies = await client.joinAllMemberAgencies();
+    for (const agency of memberAgencies) joinedAgencies.add(agency);
+  } catch (err) {
+    console.error(`joinAllMemberAgencies failed: ${err.message}`);
+  }
+
   if (remainingAgencies.length === 0) {
-    console.log(`Clawdia connected. Listening for @${CLAWDIA_HANDLE} in ${firstAgency}...`);
+    if (joinedAgencies.size === 0) {
+      console.log(`Clawdia connected. Listening for @${CLAWDIA_HANDLE} in ${firstAgency}...`);
+    } else {
+      console.log(`Clawdia connected. Listening for @${CLAWDIA_HANDLE} in ${[...joinedAgencies].join(', ')}...`);
+    }
   } else {
     console.log(
-      `Clawdia connected. Listening for @${CLAWDIA_HANDLE} in ${AGENCY_SLUGS.join(', ')}...`
+      `Clawdia connected. Listening for @${CLAWDIA_HANDLE} in ${joinedAgencies.size > 0 ? [...joinedAgencies].join(', ') : AGENCY_SLUGS.join(', ')}...`
     );
   }
 }
 
 async function main() {
   const client = new CrustoceanAgent({ apiUrl: API_URL, agentToken: AGENT_TOKEN });
+
+  client.on('agency-invited', async ({ agency }) => {
+    const target = agency?.slug || agency?.id;
+    if (!target) return;
+    try {
+      await client.join(target);
+      console.log(`Joined invited agency: ${target}`);
+    } catch (err) {
+      console.error(`Failed to join invited agency "${target}": ${err.message}`);
+    }
+  });
 
   await joinConfiguredAgencies(client, true);
 
